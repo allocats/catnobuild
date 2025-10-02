@@ -1,1 +1,5 @@
 build
+core.*
+callgrind.*
+vgcore.*
+cnb
