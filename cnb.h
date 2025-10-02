@@ -1,6 +1,7 @@
 #ifndef CNB_H
 #define CNB_H
 
+#include <cstdarg>
 #ifndef WHISKER_ASSERT
 #include <assert.h>
 #define WHISKER_ASSERT assert
@@ -18,8 +19,6 @@
 #define WHISKER_REALLOC realloc 
 #endif // WHISKER_REALLOC
 
-#define WHISKER_BUILD_TIMESTAMP __DATE__ " " __TIME__
-
 #ifdef WHISKER_NOPREFIX
     #define Cmd Whisker_Cmd
     #define cmd_append whisker_cmd_append
@@ -27,7 +26,7 @@
     #define cmd_reset whisker_cmd_reset
     #define cmd_destroy whisker_cmd_destroy
     #define should_rebuild whisker_should_rebuild
-    #define BUILD_TIMESTAMP WHISKER_BUILD_TIMESTAMP
+    #define rebuild_build whisker_rebuild_build
 #endif
 
 #include <stdbool.h>
@@ -45,6 +44,11 @@ typedef struct {
     size_t capacity;
 } Whisker_Cmd;
 
+#define whisker_cmd_append_args(cmd, ...) \
+    whisker_cmd_append_args_impl(cmd, \
+            ((const char*[]){ __VA_ARGS__ }), \
+            (sizeof((const char*[]){ __VA_ARGS__ }) / sizeof(const char*))) 
+
 static void whisker_cmd_destroy(Whisker_Cmd* cmd) {
     WHISKER_ASSERT(cmd);
 
@@ -61,7 +65,7 @@ static void whisker_cmd_reset(Whisker_Cmd* cmd) {
     cmd -> capacity = 8;
     WHISKER_FREE(cmd -> items);
 
-    cmd -> items = WHISKER_ALLOC(sizeof(const char*) * cmd -> capacity);
+    cmd -> items = (const char**) WHISKER_ALLOC(sizeof(const char*) * cmd -> capacity);
     WHISKER_ASSERT(cmd -> items);
 }
 
@@ -81,6 +85,14 @@ static void whisker_cmd_append(Whisker_Cmd* cmd, const char* arg) {
 
     cmd -> items[cmd -> count++] = arg;
 }
+
+static void whisker_cmd_append_args_impl(Whisker_Cmd* cmd, const char** args, const size_t n) {
+    WHISKER_ASSERT(cmd);
+
+    for (size_t i = 0; i < n; i++) {
+        whisker_cmd_append(cmd, args[i]);
+    }
+}  
 
 static bool whisker_cmd_execute(Whisker_Cmd* cmd) {
     WHISKER_ASSERT(cmd && cmd -> count > 0);
@@ -114,6 +126,32 @@ static bool whisker_should_rebuild(const char* src, const char* bin) {
     if (stat(src, &src_stat) < 0) return false;
     if (stat(bin, &bin_stat) < 0) return true;
     return src_stat.st_mtime > bin_stat.st_mtime;
+}
+
+static void whisker_rebuild_build(const char* path, const char* argv[]) {
+    if (!whisker_should_rebuild(path, argv[0])) return;
+
+    Whisker_Cmd cmd = {0};
+    whisker_cmd_append(&cmd, "clang");
+    whisker_cmd_append(&cmd, "-Wall");
+    whisker_cmd_append(&cmd, path);
+    whisker_cmd_append(&cmd, "-o");
+    whisker_cmd_append(&cmd, argv[0]);
+
+    if (!whisker_cmd_execute(&cmd)) {
+        whisker_cmd_destroy(&cmd);
+        fprintf(stderr, "Build failed\n");
+        exit(1);
+    }
+
+    whisker_cmd_destroy(&cmd);
+    execvp(argv[0], (char* const*) argv);
+    fprintf(stderr, "Failed to reload\n");
+    exit(1);
+}
+
+static void whisker_build_project(const char** srcs) {
+
 }
 
 #endif /* ifndef CNB_H */
