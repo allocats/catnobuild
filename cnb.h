@@ -34,10 +34,18 @@
     #define build_project whisker_build_project
     #define BUILD_SOURCES WHISKER_BUILD_SOURCES
     #define BUILD_FLAGS WHISKER_BUILD_FLAGS
+    #define COLOR_RESET WHISKER_COLOR_RESET
+    #define COLOR_GREEN WHISKER_COLOR_GREEN
+    #define COLOR_YELLOW WHISKER_COLOR_YELLOW
+    #define COLOR_RED WHISKER_COLOR_RED
 #endif
 
+#define WHISKER_COLOR_RESET   "\033[0m"
+#define WHISKER_COLOR_GREEN   "\033[32m"
+#define WHISKER_COLOR_YELLOW  "\033[33m"
+#define WHISKER_COLOR_RED     "\033[31m"
+
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,9 +65,9 @@
 typedef struct {
     const char* compiler;
     const char** sources;
-    size_t source_count;
+    const size_t source_count;
     const char** flags;
-    size_t flag_count;
+    const size_t flag_count;
     const char* build_dir;
     const char* output_dir;
     const char* output;
@@ -196,7 +204,7 @@ static bool whisker_rebuild_build(const char* path, const char* argv[]) {
     Whisker_Cmd cmd = {0};
     whisker_cmd_append(&cmd, "clang");
     whisker_cmd_append(&cmd, "-Wall");
-    whisker_cmd_append(&cmd, "-O3");
+    whisker_cmd_append(&cmd, "-O2");
     whisker_cmd_append(&cmd, "-flto");
     whisker_cmd_append(&cmd, "-march=native");
     whisker_cmd_append(&cmd, path);
@@ -224,11 +232,11 @@ static void whisker_make_object_path(char* obj_path, const char* dir, const char
     
     const char* ext = strrchr(name, '.');
     const size_t dir_len = strlen(dir);
-    const size_t len = (size_t)(ext - name) + dir_len;
+    const size_t name_len = (size_t)(ext - name);
 
     strncpy(obj_path, dir, dir_len);
-    strncpy(obj_path + dir_len, name, len);
-    strcpy(obj_path + len, ".o");
+    strncpy(obj_path + dir_len, name, name_len);
+    strcpy(obj_path + dir_len + name_len, ".o");
 }
 
 static bool whisker_build_project(Whikser_Config* cfg, bool rebuilt) {
@@ -244,7 +252,7 @@ static bool whisker_build_project(Whikser_Config* cfg, bool rebuilt) {
     pid_t pids[job_count];
 
     size_t compiled = 0;
-    size_t didnt_compile = 0;
+    size_t unchanged = 0;
     size_t index = 0;
 
     char** obj_paths = (char**) WHISKER_ALLOC(sizeof(char*) * cfg -> source_count);
@@ -263,7 +271,7 @@ static bool whisker_build_project(Whikser_Config* cfg, bool rebuilt) {
 
                 index++;
                 compiled++;
-                didnt_compile++;
+                unchanged++;
                 continue;
             }
 
@@ -285,7 +293,7 @@ static bool whisker_build_project(Whikser_Config* cfg, bool rebuilt) {
 
         for (size_t k = 0; k < active; k++) {
             if (!whisker_cmd_wait(pids[k])) {
-                fprintf(stderr, "Compilation failed\n");
+                fprintf(stderr, "\nBuild" WHISKER_COLOR_RED " \033[1mfailed" WHISKER_COLOR_RESET"\n");
                 return false;
             }
 
@@ -293,14 +301,14 @@ static bool whisker_build_project(Whikser_Config* cfg, bool rebuilt) {
         }
     }
 
-    if (didnt_compile == compiled) {
+    if (unchanged == compiled) {
         for (size_t i = 0; i < cfg -> source_count; i++) {
             WHISKER_FREE(obj_paths[i]);
         }
         WHISKER_FREE(obj_paths);
 
         whisker_cmd_destroy(&link_cmd);
-        printf("Nothing to do\n");
+        printf("Nothing to do, sorry if it was header, .h support is coming :/\n");
         exit(0);
     }
 

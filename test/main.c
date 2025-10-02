@@ -3,11 +3,12 @@
 #include "foo.h"
 
 void bar() {
-    printf("bar");
+    printf("aa");
+    printf("baaaa");
 }
 
 int main(void) {
-    printf("Helo :3!");
+    printf("hewo :3!");
     foo();
     bar();
     return 0;

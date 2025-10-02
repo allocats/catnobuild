@@ -1,11 +1,15 @@
 #define WHISKER_NOPREFIX
 #include "cnb.h"
 
+#include <time.h>
+
 int main(int argc, const char* argv[]) {
     bool rebuilt = getenv("CNB_REBUILT") != NULL;
     if (rebuilt) {
         unsetenv("CNB_REBUILT");
         printf("Build system was rebuilt, forcing full recompilation\n");
+    } else {
+        printf(COLOR_YELLOW "\nwhisker build system :3" COLOR_RESET "\n\n");
     }
 
     rebuild_build("cnb.c", argv);
@@ -26,11 +30,21 @@ int main(int argc, const char* argv[]) {
         .parallel_jobs = 12
     };
 
-    if (build_project(&config, rebuilt)) {
-        printf("Compiled :3\n");
+    struct timespec t_start;
+    struct timespec t_end;
+
+    clock_gettime(CLOCK_MONOTONIC, &t_start);
+    bool result = build_project(&config, rebuilt);
+    clock_gettime(CLOCK_MONOTONIC, &t_end);
+
+    double start = t_start.tv_sec * 1000.0 + t_start.tv_nsec / 1000000.0;
+    double end = t_end.tv_sec * 1000.0 + t_end.tv_nsec / 1000000.0;
+    double elapsed = end  - start;
+
+    if (result) {
+        printf("Build \033[1m" COLOR_GREEN "finished!\033[0m" COLOR_RESET "(took %.3fs)\n", elapsed / 1000.0);
         return 0;
     } else {
-        printf("Good luck deubgging!\n");
         return 1;
     }
 }
